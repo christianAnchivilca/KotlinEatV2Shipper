@@ -13,6 +13,10 @@ import com.google.android.material.navigation.NavigationView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import android.view.Menu
+import android.widget.Toast
+import com.christian.kotlineatv2shipper.common.Common
+import com.google.firebase.iid.FirebaseInstanceId
+
 
 class HomeActivity : AppCompatActivity() {
 
@@ -23,12 +27,9 @@ class HomeActivity : AppCompatActivity() {
         setContentView(R.layout.activity_home)
         val toolbar: Toolbar = findViewById(R.id.toolbar)
         setSupportActionBar(toolbar)
+        updateToken()
 
-        val fab: FloatingActionButton = findViewById(R.id.fab)
-        fab.setOnClickListener { view ->
-            Snackbar.make(view, "Replace with your own action", Snackbar.LENGTH_LONG)
-                .setAction("Action", null).show()
-        }
+
         val drawerLayout: DrawerLayout = findViewById(R.id.drawer_layout)
         val navView: NavigationView = findViewById(R.id.nav_view)
         val navController = findNavController(R.id.nav_host_fragment)
@@ -42,6 +43,19 @@ class HomeActivity : AppCompatActivity() {
         )
         setupActionBarWithNavController(navController, appBarConfiguration)
         navView.setupWithNavController(navController)
+    }
+
+    private fun updateToken() {
+        FirebaseInstanceId.getInstance().instanceId
+            .addOnFailureListener{
+              Toast.makeText(this,""+it.message,Toast.LENGTH_LONG).show()
+            }
+            .addOnSuccessListener{
+                result->
+            Common.updateToken(this@HomeActivity,result.token,false,true)
+
+
+            }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {

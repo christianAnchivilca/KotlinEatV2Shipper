@@ -26,6 +26,8 @@ import kotlin.random.Random
 
 object Common {
 
+    val SHIPPING_DATA: String?="ShippingData"
+    val SHIPPING_ORDER_REF: String = "ShippingOrder"
     val ORDER_REF:String ="Order"
 
     const val SHIPPER_REF = "Shippers"
@@ -46,9 +48,6 @@ object Common {
         txtSpannable.setSpan(boldSpan,0,name!!.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         builder.append(txtSpannable)
         txtUser!!.setText(builder,TextView.BufferType.SPANNABLE)
-
-
-
     }
 
     fun setSpanStringColor(welcome: String, name: String?, txtUser: TextView?,color:Int){
@@ -106,11 +105,11 @@ object Common {
             else -> "Error"
         }
 
-    fun updateToken(context: Context, token: String) {
+    fun updateToken(context: Context, token: String,isServerToken:Boolean,isShipperToken:Boolean) {
         FirebaseDatabase.getInstance()
             .getReference(Common.TOKEN_REF)
             .child(Common.currentShipperUser!!.uid!!)
-            .setValue(TokenModel(currentShipperUser!!.phone!!,token))
+            .setValue(TokenModel(currentShipperUser!!.phone!!,token,isServerToken,isShipperToken))
             .addOnFailureListener{
                     e->
                 Toast.makeText(context,""+e.message,Toast.LENGTH_LONG).show()
@@ -142,6 +141,7 @@ object Common {
         builder.setContentTitle(title!!).setContentText(content)
             .setAutoCancel(true)
             .setSmallIcon(R.mipmap.ic_launcher_round)
+
             .setLargeIcon(BitmapFactory.decodeResource(context.resources,R.drawable.ic_restaurant_menu_black_24dp))
         if (pendingIntent != null)
             builder.setContentIntent(pendingIntent)
