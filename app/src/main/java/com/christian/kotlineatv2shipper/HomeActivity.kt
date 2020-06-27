@@ -1,6 +1,8 @@
 package com.christian.kotlineatv2shipper
 
+import android.content.Intent
 import android.os.Bundle
+import android.text.TextUtils
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.snackbar.Snackbar
 import androidx.navigation.findNavController
@@ -16,6 +18,7 @@ import android.view.Menu
 import android.widget.Toast
 import com.christian.kotlineatv2shipper.common.Common
 import com.google.firebase.iid.FirebaseInstanceId
+import io.paperdb.Paper
 
 
 class HomeActivity : AppCompatActivity() {
@@ -28,6 +31,7 @@ class HomeActivity : AppCompatActivity() {
         val toolbar: Toolbar = findViewById(R.id.toolbar)
         setSupportActionBar(toolbar)
         updateToken()
+        checkStartTrip()
 
 
         val drawerLayout: DrawerLayout = findViewById(R.id.drawer_layout)
@@ -44,6 +48,20 @@ class HomeActivity : AppCompatActivity() {
         setupActionBarWithNavController(navController, appBarConfiguration)
         navView.setupWithNavController(navController)
     }
+    override fun onResume() {
+        super.onResume()
+        checkStartTrip()
+    }
+
+    private fun checkStartTrip() {
+        Paper.init(this)
+        val data = Paper.book().read<String>(Common.TRIP_START)
+        if (!TextUtils.isEmpty(data))
+            startActivity(Intent(this,ShippingActivity::class.java))
+
+    }
+
+
 
     private fun updateToken() {
         FirebaseInstanceId.getInstance().instanceId

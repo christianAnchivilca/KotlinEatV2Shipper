@@ -18,11 +18,10 @@ import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import com.bumptech.glide.Glide
 import com.christian.kotlineatv2shipper.common.Common
-import com.christian.kotlineatv2shipper.common.LatLngInterpolator
-import com.christian.kotlineatv2shipper.common.MarkerAnimation
 import com.christian.kotlineatv2shipper.model.ShippingOrderModel
 import com.christian.kotlineatv2shipper.remote.IGoogleApi
 import com.christian.kotlineatv2shipper.remote.RetrofitClient
+import com.google.android.gms.common.api.Status
 import com.google.android.gms.location.*
 
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -30,6 +29,11 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.*
+import com.google.android.libraries.places.api.Places
+import com.google.android.libraries.places.api.model.Place
+import com.google.android.libraries.places.api.net.PlacesClient
+import com.google.android.libraries.places.widget.AutocompleteSupportFragment
+import com.google.android.libraries.places.widget.listener.PlaceSelectionListener
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.karumi.dexter.Dexter
@@ -39,16 +43,18 @@ import com.karumi.dexter.listener.PermissionGrantedResponse
 import com.karumi.dexter.listener.PermissionRequest
 import com.karumi.dexter.listener.single.PermissionListener
 import io.paperdb.Paper
-import io.reactivex.Scheduler
+
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
 import kotlinx.android.synthetic.main.activity_shipping.*
 import org.json.JSONObject
-import retrofit2.create
+
 import java.lang.Exception
 import java.lang.StringBuilder
 import java.text.SimpleDateFormat
+import java.util.*
+import kotlin.collections.ArrayList
 
 class ShippingActivity : AppCompatActivity(), OnMapReadyCallback {
 
@@ -69,14 +75,21 @@ class ShippingActivity : AppCompatActivity(), OnMapReadyCallback {
     private var v:Float=0f
     private var lat:Double = 1.0
     private var lng:Double = 1.0
+
     private var blackPolyline:Polyline?=null
     private var greyPolyline:Polyline?=null
     private var polylineOptions:PolylineOptions? = null
     private var blackPolylineOptions:PolylineOptions? = null
+    private var redPolyline:Polyline? = null
 
     private var polylineList:List<LatLng> = ArrayList<LatLng>()
     private var iGoogleApi:IGoogleApi?=null
     private var compositeDisposable = CompositeDisposable()
+    //google places
+    private lateinit var places_fragment:AutocompleteSupportFragment
+    private lateinit var placesClient:PlacesClient
+    private val placeField = Arrays.asList(Place.Field.ID,Place.Field.NAME, Place.Field.ADDRESS, Place.Field.LAT_LNG)
+
 
 
 
@@ -86,10 +99,11 @@ class ShippingActivity : AppCompatActivity(), OnMapReadyCallback {
         setContentView(R.layout.activity_shipping)
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         iGoogleApi = RetrofitClient.instance!!.create(IGoogleApi::class.java)
+        initPlaces()
 
         buildLocationRequest()
         buildLocationCallback()
-        setShippingOrderModel()
+
 
         //PERMISO PARA ACCEDER A LA UBICACION ACTUAL
         Dexter.withContext(this@ShippingActivity)
@@ -119,14 +133,67 @@ class ShippingActivity : AppCompatActivity(), OnMapReadyCallback {
             }).check()
 
 
+        initViews()
+    }
+
+    private fun initPlaces() {
+        Places.initialize(this,getString(R.string.google_maps_key))
+        placesClient = Places.createClient(this)
+        setupPlaceAutocomplete()
+
+
+    }
+
+    private fun setupPlaceAutocomplete() {
+
+        places_fragment = supportFragmentManager
+                .findFragmentById(R.id.places_autocomplete_fragment) as AutocompleteSupportFragment
+        places_fragment.setPlaceFields(placeField)
+        places_fragment.setOnPlaceSelectedListener(object:PlaceSelectionListener{
+            override fun onPlaceSelected(p0: Place) {
+
+                Toast.makeText(this@ShippingActivity,StringBuilder(p0.name)
+                    .append("-")
+                    .append(p0.latLng).toString(),Toast.LENGTH_LONG).show()
+
+            }
+
+            override fun onError(p0: Status) {
+                Toast.makeText(this@ShippingActivity,""+p0.statusMessage,Toast.LENGTH_LONG).show()
+
+            }
+
+        })
+
+    }
+
+    private fun initViews(){
+        btn_start_trip.setOnClickListener {
+            val data = Paper.book().read<String>(Common.SHIPPING_DATA)
+            Paper.book().write(Common.TRIP_START,data)
+            btn_start_trip.isEnabled = false
+            drawRoutes(data)
+        }
 
     }
 
     private fun setShippingOrderModel() {
         Paper.init(this)
-        val data = Paper.book().read<String>(Common.SHIPPING_DATA)
+        var data:String?=""
+
+        if (TextUtils.isEmpty(Paper.book().read(Common.TRIP_START))){
+            data = Paper.book().read<String>(Common.SHIPPING_DATA)
+            btn_start_trip.isEnabled = true
+        }else{
+            data = Paper.book().read<String>(Common.TRIP_START)
+            btn_start_trip.isEnabled = false
+
+        }
+
+
         if (!TextUtils.isEmpty(data))
         {
+            drawRoutes(data)
             shippingOrderModel = Gson().fromJson<ShippingOrderModel>(data,object:TypeToken<ShippingOrderModel>(){}.type)
             if (shippingOrderModel != null){
                 Common.setSpanStringColor("Nombre: ",shippingOrderModel!!.orderModel!!.userName,txt_name,
@@ -147,6 +214,73 @@ class ShippingActivity : AppCompatActivity(), OnMapReadyCallback {
         }else{
             Toast.makeText(this,"Shipping order model is null", Toast.LENGTH_SHORT).show()
         }
+
+
+    }
+
+    private fun drawRoutes(data: String?) {
+        val shippingOrderModel = Gson()
+            .fromJson<ShippingOrderModel>(data,object:TypeToken<ShippingOrderModel>(){}.type)
+
+        mMap.addMarker(MarkerOptions()
+            .icon(BitmapDescriptorFactory.fromResource(R.drawable.box))
+            .title(shippingOrderModel.orderModel!!.userName)
+            .snippet(shippingOrderModel.orderModel!!.shippingAddress)
+            .position(LatLng(shippingOrderModel.orderModel!!.lat,shippingOrderModel.orderModel!!.lng)))
+
+        fusedLocationProviderClient.lastLocation
+            .addOnFailureListener{e->Toast.makeText(this,e.message,Toast.LENGTH_LONG).show()}
+            .addOnSuccessListener {
+                location ->
+                val to = StringBuilder().append(shippingOrderModel.orderModel!!.lat)
+                    .append(",")
+                    .append(shippingOrderModel.orderModel!!.lng).toString()
+                val from = StringBuilder().append(location.latitude)
+                    .append(",")
+                    .append(location.longitude)
+                    .toString()
+
+                compositeDisposable.add(iGoogleApi!!.getDirections("driving","less_driving",
+                  from,to,getString(R.string.google_maps_key))
+                    !!.subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(
+                        {s->
+
+                            try {
+                                val jsonObject = JSONObject(s)
+                                val jsonArray = jsonObject.getJSONArray("routes")
+                                for(i in 0 until jsonArray.length())
+                                {
+                                    val route = jsonArray.getJSONObject(i)
+                                    val poly = route.getJSONObject("overview_polyline")
+                                    val polyline = poly.getString("points")
+                                    polylineList = Common.decodePoly(polyline)
+                                }
+
+                                polylineOptions = PolylineOptions()
+                                polylineOptions!!.color(Color.RED)
+                                polylineOptions!!.width(12.0f)
+                                polylineOptions!!.startCap(SquareCap())
+                                polylineOptions!!.endCap(SquareCap())
+                                polylineOptions!!.jointType(JointType.ROUND)
+                                polylineOptions!!.addAll(polylineList)
+                                redPolyline = mMap.addPolyline(polylineOptions)
+
+
+                            }catch (e:Exception){
+                                Log.d("DEBUG",e.message)
+
+                            }
+
+                        },{
+                            Toast.makeText(this,""+it.message,Toast.LENGTH_SHORT).show()
+
+                        }))
+            }
+
+
+
 
 
     }
@@ -322,6 +456,7 @@ class ShippingActivity : AppCompatActivity(), OnMapReadyCallback {
 
     override fun onMapReady(googleMap: GoogleMap) {
         mMap = googleMap
+        setShippingOrderModel()
 
         /* Add a marker in Sydney and move the camera
         val sydney = LatLng(-34.0, 151.0)
