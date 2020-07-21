@@ -108,19 +108,21 @@ object Common {
         }
 
     fun updateToken(context: Context, token: String,isServerToken:Boolean,isShipperToken:Boolean) {
-        FirebaseDatabase.getInstance()
-            .getReference(Common.TOKEN_REF)
-            .child(Common.currentShipperUser!!.uid!!)
-            .setValue(TokenModel(currentShipperUser!!.phone!!,token,isServerToken,isShipperToken))
-            .addOnFailureListener{
-                    e->
-                Toast.makeText(context,""+e.message,Toast.LENGTH_LONG).show()
-            }
-
+      //FIX CRASH ON FIRST TIME RUN
+        if (Common.currentShipperUser != null)
+            FirebaseDatabase.getInstance()
+                .getReference(Common.TOKEN_REF)
+                .child(Common.currentShipperUser!!.uid!!)
+                .setValue(TokenModel(currentShipperUser!!.phone!!,token,isServerToken,isShipperToken))
+                .addOnFailureListener{
+                        e->
+                    Toast.makeText(context,""+e.message,Toast.LENGTH_LONG).show()
+                }
     }
 
     fun showNotification(context:Context, id: Int, title: String?, content: String?,intent: Intent?) {
         var pendingIntent: PendingIntent? = null
+
         if (intent != null)
             pendingIntent = PendingIntent.getActivity(context,id,intent,PendingIntent.FLAG_UPDATE_CURRENT)
         val NOTIFICATION_CHANNEL_ID = "edmt.dev.eatitv2"
@@ -207,6 +209,10 @@ object Common {
         }
         return poly
 
+
+    }
+
+    fun buildLocationString(location: Location?): String? {
 
     }
 

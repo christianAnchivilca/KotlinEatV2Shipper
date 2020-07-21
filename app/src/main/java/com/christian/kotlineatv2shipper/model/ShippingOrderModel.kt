@@ -2,6 +2,7 @@ package com.christian.kotlineatv2shipper.model
 
 class ShippingOrderModel {
 
+
     var shipperPhone:String?=null
     var shipperName:String?=null
     var currentLat = 0.0

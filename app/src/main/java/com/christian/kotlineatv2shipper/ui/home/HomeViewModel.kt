@@ -50,7 +50,7 @@ class HomeViewModel : ViewModel(), IShippingOrderCallbackListener {
             override fun onDataChange(p0: DataSnapshot) {
                 for (item in p0.children){
                     val shippingOrder = item.getValue(ShippingOrderModel::class.java)
-                    //shippingOrder!!.key =item.key
+                    shippingOrder!!.key =item.key
                     tempList.add(shippingOrder!!)
                 }
                 listener.onShippingOrderLoadSuccess(tempList)
